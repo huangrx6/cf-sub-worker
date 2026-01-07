@@ -2,6 +2,18 @@
 
 > 一个基于 Cloudflare Workers 的高性能订阅聚合与优选工具，拥有极简且精致的现代化 UI。
 
+## 🙏 致谢 & Credits
+
+本项目基于开源社区的优秀作品修改与增强，特别感谢以下项目的作者：
+
+- **Core Functionality**: Powered by [cmliu/CF-Workers-SUB](https://github.com/cmliu/CF-Workers-SUB)  
+  *感谢 cmliu 大佬提供的强大内核逻辑！*
+  
+- **Original Modification**: Based on [lzxaf/CF-Workers-SUB-Modified](https://github.com/lzxaf/CF-Workers-SUB-Modified)  
+  *感谢 lzxaf 提供的基础修改版！*
+
+---
+
 ![Preview](assets/preview.png)
 ![Edit](assets/edit.png)
 
@@ -20,14 +32,24 @@
 - 拥有一个 Cloudflare 账号。
 - 安装 [Wrangler CI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)。
 
-### 2. 克隆项目
+### 2. 环境配置
 ```bash
-git clone https://github.com/your-repo/cf-workers-sub-enhanced.git
+# 全局安装 wrangler (如果你还没有安装)
+npm install -g wrangler
+
+# 登录 Cloudflare 账号 (弹出浏览器授权)
+npx wrangler login
+```
+
+### 3. 克隆项目
+```bash
+# 替换为你的仓库地址
+git clone https://github.com/your-username/cf-workers-sub-enhanced.git
 cd cf-workers-sub-enhanced
 npm install
 ```
 
-### 3. 配置 KV
+### 4. 配置 KV
 在 `wrangler.toml` 中填入你的 KV 命名空间 ID：
 ```toml
 [[kv_namespaces]]
@@ -35,7 +57,7 @@ binding = "KV"
 id = "你的_KV_ID"
 ```
 
-### 4. 部署上线
+### 5. 部署上线
 ```bash
 npx wrangler deploy
 ```
@@ -53,16 +75,6 @@ npx wrangler deploy
 | `SUBNAME` | 默认订阅文件名 | `MySubscription` |
 | `TGTOKEN` | Telegram Bot Token | `123456:ABC-DEF...` |
 | `TGID` | Telegram Chat ID | `12345678` |
-
-## 🙏 致谢 & Credits
-
-本项目基于开源社区的优秀作品修改与增强，特别感谢以下项目的作者：
-
-- **Core Functionality**: Powered by [cmliu/CF-Workers-SUB](https://github.com/cmliu/CF-Workers-SUB)  
-  *感谢 cmliu 大佬提供的强大内核逻辑！*
-  
-- **Original Modification**: Based on [lzxaf/CF-Workers-SUB-Modified](https://github.com/lzxaf/CF-Workers-SUB-Modified)  
-  *感谢 lzxaf 提供的基础修改版！*
 
 ---
 Made with ❤️ by huangrx6
