@@ -4,7 +4,7 @@
 
 import { loadConfig } from './config.js';
 import {
-    ADD, htmlResponse, nginx, MD5MD5, clashFix, escapeHtml
+    ADD, htmlResponse, nginx, MD5MD5, clashFix
 } from './utils.js';
 import {
     listSubsFromKV, readSubMetaFromKV, hydrateSubsMeta, migrateAddressList
@@ -17,6 +17,27 @@ import { renderHomePage } from './pages/home.js';
 import { renderSubPage } from './pages/sub.js';
 import { renderManagePage } from './pages/manage.js';
 import { renderEditPage } from './pages/edit.js';
+
+function normalizeViewPath(value, fallback = '/') {
+    const raw = String(value || '').trim();
+    if (!raw) return fallback;
+    const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+    const clean = withSlash.replace(/\/+$/, '');
+    return clean || '/';
+}
+
+function splitPathSegments(path) {
+    return String(path || '').split('/').filter(Boolean);
+}
+
+function getSegmentsAfterPrefix(pathSegments, prefixSegments) {
+    if (prefixSegments.length === 0) return pathSegments.slice();
+    if (pathSegments.length < prefixSegments.length) return null;
+    for (let i = 0; i < prefixSegments.length; i++) {
+        if (pathSegments[i] !== prefixSegments[i]) return null;
+    }
+    return pathSegments.slice(prefixSegments.length);
+}
 
 export default {
     async fetch(request, env) {
@@ -31,10 +52,37 @@ export default {
         const config = loadConfig(env);
 
         // 解析路径
-        const pathMatch = url.pathname.match(/^\/(sub\d+)(\/|$|\?)/);
-        const subName = pathMatch ? pathMatch[1] : null;
         const pathSegments = url.pathname.split('/').filter(Boolean);
-        const pathTokenCandidate = subName ? (pathSegments[1] || '') : (pathSegments[0] || '');
+        const firstSegment = pathSegments[0] || '';
+
+        // 提前加载主订阅配置获取 viewPath
+        let mainViewPath = '/';
+        if (env.KV) {
+            const mainConfigRaw = await env.KV.get('MAIN_CONFIG');
+            if (mainConfigRaw) {
+                try {
+                    const mainConfig = JSON.parse(mainConfigRaw);
+                    mainViewPath = mainConfig.viewPath || '/';
+                } catch { }
+            }
+        }
+
+        // 规范化 viewPath
+        const normalizedMainViewPath = normalizeViewPath(mainViewPath, '/');
+        const mainViewPathSegments = splitPathSegments(normalizedMainViewPath);
+
+        // 判断是否是子订阅格式 (/sub\d+)
+        const subPattern = /^(sub\d+)$/;
+        const isSubPath = firstSegment && subPattern.test(firstSegment);
+        const subName = isSubPath ? firstSegment : null;
+
+        // 判断是否是主订阅的 viewPath
+        const mainRelativeSegments = subName ? null : getSegmentsAfterPrefix(pathSegments, mainViewPathSegments);
+
+        // 用于权限检查的 token
+        const subPathTokenCandidate = subName ? (pathSegments[1] || '') : '';
+        const mainPathTokenCandidate = mainRelativeSegments?.[0] || '';
+        const adminPathTokenCandidate = subName ? subPathTokenCandidate : firstSegment;
 
         // 多订阅配置
         const envBestIPUrl = env.BESTIPURL || env.BESTIP || '';
@@ -43,6 +91,7 @@ export default {
             MainData: config.MainData,
             FileName: config.FileName,
             displayName: config.FileName,
+            viewPath: subName ? `/${subName}` : normalizedMainViewPath,
             subConfig: config.subConfig,
             bestIPUrl: envBestIPUrl,
             customHosts: envCustomHosts,
@@ -57,6 +106,9 @@ export default {
                     const parsed = JSON.parse(subConfigData);
                     currentSubConfig.FileName = parsed.FileName || (subName ? `${config.FileName}-${subName}` : config.FileName);
                     currentSubConfig.displayName = parsed.displayName || parsed.FileName || currentSubConfig.FileName;
+                    currentSubConfig.viewPath = subName
+                        ? (parsed.viewPath || currentSubConfig.viewPath)
+                        : normalizeViewPath(parsed.viewPath || currentSubConfig.viewPath, '/');
                     currentSubConfig.subConfig = parsed.subConfig || config.subConfig;
                     if (typeof parsed.bestIPUrl === 'string') currentSubConfig.bestIPUrl = parsed.bestIPUrl;
                     if (typeof parsed.customHosts === 'string') currentSubConfig.customHosts = parsed.customHosts;
@@ -73,7 +125,9 @@ export default {
         const fakeToken = await MD5MD5(`${config.mytoken}${timeTemp}`);
         const guestToken = config.guestToken || await MD5MD5(config.mytoken);
 
-        const isAdmin = token === config.mytoken || pathTokenCandidate === config.mytoken;
+        const isAdmin = token === config.mytoken ||
+            adminPathTokenCandidate === config.mytoken ||
+            mainPathTokenCandidate === config.mytoken;
 
         // ===== 路由处理 =====
 
@@ -129,12 +183,20 @@ export default {
         // 验证访问权限
         let isValidAccess = false;
         if (subName) {
-            const pathToken = url.pathname.split('/').filter(p => p && p !== subName)[0];
+            // 子订阅：管理员和游客都可以访问
             isValidAccess = [config.mytoken, fakeToken, guestToken].includes(token) ||
-                [config.mytoken, fakeToken, guestToken].includes(pathToken);
+                [config.mytoken, fakeToken, guestToken].includes(subPathTokenCandidate);
         } else {
-            isValidAccess = [config.mytoken, fakeToken, guestToken].includes(token) ||
-                pathTokenCandidate === config.mytoken;
+            // 主订阅：仅管理员可以访问，游客不可访问
+            const isScopedMainRoute = mainRelativeSegments !== null;
+            const isLegacyAdminRoute = firstSegment === config.mytoken;
+            const isMainRouteMatched = isScopedMainRoute || isLegacyAdminRoute;
+            const mainRouteTokenCandidate = isScopedMainRoute ? (mainRelativeSegments[0] || '') : firstSegment;
+
+            isValidAccess = isMainRouteMatched && (
+                [config.mytoken, fakeToken].includes(token) ||
+                [config.mytoken, fakeToken].includes(mainRouteTokenCandidate)
+            );
         }
 
         if (!isValidAccess) {
@@ -149,7 +211,7 @@ export default {
             if (env.URL302) return Response.redirect(env.URL302, 302);
             if (env.URL) return await proxyURL(env.URL, url);
             return new Response(nginx(), {
-                status: 200,
+                status: 404,
                 headers: { 'Content-Type': 'text/html; charset=UTF-8' },
             });
         }
@@ -160,8 +222,11 @@ export default {
             await migrateAddressList(env, kvKey);
 
             const isEditEndpoint = !url.search && (
-                (subName && pathTokenCandidate === config.mytoken && (pathSegments.length === 2 || pathSegments[2] === 'edit')) ||
-                (!subName && pathTokenCandidate === config.mytoken && pathSegments[1] === 'edit')
+                (subName && subPathTokenCandidate === config.mytoken && (pathSegments.length === 2 || pathSegments[2] === 'edit')) ||
+                (!subName && (
+                    (firstSegment === config.mytoken && pathSegments[1] === 'edit') ||
+                    (mainPathTokenCandidate === config.mytoken && mainRelativeSegments?.[1] === 'edit')
+                ))
             );
 
             if (isEditEndpoint && (request.method === 'GET' && wantsHtml || request.method === 'POST')) {
@@ -181,7 +246,19 @@ export default {
         }
 
         // 订阅生成
-        return await generateSubscription(request, env, config, currentSubConfig, url, userAgent, userAgentHeader, fakeToken, subName, guestToken);
+        return await generateSubscription(
+            request,
+            env,
+            config,
+            currentSubConfig,
+            url,
+            userAgent,
+            userAgentHeader,
+            fakeToken,
+            subName,
+            guestToken,
+            currentSubConfig.viewPath || normalizedMainViewPath
+        );
     }
 };
 
@@ -209,6 +286,9 @@ async function handleKVEdit(request, env, kvKey, guestToken, subName, currentSub
 
                     if (payload.displayName) existing.displayName = payload.displayName;
                     if (payload.FileName) existing.FileName = payload.FileName;
+                    if (typeof payload.viewPath === 'string') {
+                        existing.viewPath = normalizeViewPath(payload.viewPath, subName ? `/${subName}` : '/');
+                    }
 
                     await env.KV.put(configKey, JSON.stringify(existing));
                     return new Response('名称保存成功', { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
@@ -264,6 +344,7 @@ async function handleKVEdit(request, env, kvKey, guestToken, subName, currentSub
         displayBestIPUrl: currentSubConfig.bestIPUrl || '',
         displayCustomHosts: currentSubConfig.customHosts || '',
         displayDisplayName: currentSubConfig.displayName || currentSubConfig.FileName,
+        displayViewPath: currentSubConfig.viewPath || (subName ? `/${subName}` : '/'),
         subName,
         subPathPrefix,
         managePath,
@@ -282,7 +363,7 @@ async function handleKVEdit(request, env, kvKey, guestToken, subName, currentSub
 /**
  * 生成订阅内容
  */
-async function generateSubscription(request, env, config, currentSubConfig, url, userAgent, userAgentHeader, fakeToken, subName, guestToken) {
+async function generateSubscription(request, env, config, currentSubConfig, url, userAgent, userAgentHeader, fakeToken, subName, guestToken, mainViewPath) {
     // 汇总所有链接
     let allLinks = await ADD(currentSubConfig.MainData + '\n' + config.urls.join('\n'));
     let selfNodes = '';
@@ -334,7 +415,8 @@ async function generateSubscription(request, env, config, currentSubConfig, url,
     let reqData = currentSubConfig.MainData + subContent.join('\n');
 
     // 生成订阅转换 URL
-    const subPathPrefix = subName ? `/${subName}` : '';
+    const normalizedMainPath = normalizeViewPath(mainViewPath || currentSubConfig.viewPath || '/', '/');
+    const subPathPrefix = subName ? `/${subName}` : (normalizedMainPath === '/' ? '' : normalizedMainPath);
     let subConvertUrl = `${url.origin}${subPathPrefix}/${await MD5MD5(fakeToken)}?token=${fakeToken}`;
     if (subUrlList) subConvertUrl += '|' + subUrlList;
     if (env.WARP) subConvertUrl += '|' + (await ADD(env.WARP)).join('|');

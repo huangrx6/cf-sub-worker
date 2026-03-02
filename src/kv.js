@@ -73,10 +73,12 @@ export async function readSubMetaFromKV(env, id, defaultTitle) {
     }
 
     const fallbackFileName = isMain ? defaultTitle : `${defaultTitle}-${subId}`;
+    const defaultViewPath = isMain ? '/' : `/${subId}`;
     return {
         id: isMain ? 'main' : subId,
         displayName: parsed.displayName || parsed.FileName || fallbackFileName,
         FileName: parsed.FileName || fallbackFileName,
+        viewPath: parsed.viewPath || defaultViewPath,
     };
 }
 
@@ -127,6 +129,7 @@ export async function upsertSubMetaInKV(env, id, patch, defaultTitle) {
     const next = { ...config };
     if (typeof patch?.displayName === 'string') next.displayName = patch.displayName.trim();
     if (typeof patch?.FileName === 'string') next.FileName = patch.FileName.trim();
+    if (typeof patch?.viewPath === 'string') next.viewPath = patch.viewPath.trim() || (isMain ? '/' : `/${subId}`);
 
     const fallbackFileName = isMain ? defaultTitle : `${defaultTitle}-${subId}`;
     next.FileName = next.FileName || fallbackFileName;

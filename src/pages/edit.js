@@ -5,6 +5,14 @@
 import { escapeHtml, escapeJsString, safeJsonStringify } from '../utils.js';
 import { baseStyles, darkThemeStyles, linkCardStyles, subLinkStyles, qrStyles } from './styles.js';
 
+function normalizeViewPath(value) {
+    const raw = String(value || '/').trim();
+    if (!raw || raw === '/') return '/';
+    const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+    const clean = withSlash.replace(/\/+$/, '');
+    return clean || '/';
+}
+
 /**
  * 渲染编辑页
  * @param {Object} options
@@ -17,6 +25,7 @@ export function renderEditPage({
     displayBestIPUrl,
     displayCustomHosts,
     displayDisplayName,
+    displayViewPath,
     subName,
     subPathPrefix,
     managePath,
@@ -28,11 +37,17 @@ export function renderEditPage({
     subConverter,
     hasKV,
 }) {
+    const normalizedViewPath = normalizeViewPath(displayViewPath || (subName ? `/${subName}` : '/'));
     const safeFileName = escapeHtml(displayFileName);
     const safeDisplayName = escapeHtml(displayDisplayName);
+    const safeViewPath = escapeHtml(normalizedViewPath);
     const safeSubConfig = escapeHtml(displaySubConfig);
     const safeBestIPUrl = escapeHtml(displayBestIPUrl || '');
     const safeCustomHosts = escapeHtml(displayCustomHosts || '');
+    const basePath = subName
+        ? `${subPathPrefix}/sub`
+        : `${normalizedViewPath === '/' ? '' : normalizedViewPath}/sub`;
+    const adminBaseUrl = `${url.origin}${basePath}?token=${mytoken}`;
 
     // 生成订阅链接
     const renderSubLink = (label, linkUrl) => {
@@ -55,23 +70,24 @@ export function renderEditPage({
 
     // 管理员订阅链接
     const adminLinks = [
-        renderSubLink('通用', `https://${url.hostname}${subPathPrefix}/${mytoken}`),
-        renderSubLink('Base64', `https://${url.hostname}${subPathPrefix}/${mytoken}?b64`),
-        renderSubLink('Clash', `https://${url.hostname}${subPathPrefix}/${mytoken}?clash`),
-        renderSubLink('Singbox', `https://${url.hostname}${subPathPrefix}/${mytoken}?sb`),
-        renderSubLink('Surge', `https://${url.hostname}${subPathPrefix}/${mytoken}?surge`),
-        renderSubLink('Loon', `https://${url.hostname}${subPathPrefix}/${mytoken}?loon`),
+        renderSubLink('通用', adminBaseUrl),
+        renderSubLink('Base64', `${adminBaseUrl}&b64`),
+        renderSubLink('Clash', `${adminBaseUrl}&clash`),
+        renderSubLink('Singbox', `${adminBaseUrl}&sb`),
+        renderSubLink('Surge', `${adminBaseUrl}&surge`),
+        renderSubLink('Loon', `${adminBaseUrl}&loon`),
     ].join('');
 
     // 访客订阅链接
-    const guestLinks = [
-        renderSubLink('通用', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}`),
-        renderSubLink('Base64', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}&b64`),
-        renderSubLink('Clash', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}&clash`),
-        renderSubLink('Sing-box', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}&sb`),
-        renderSubLink('Surge', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}&surge`),
-        renderSubLink('Loon', `https://${url.hostname}${subPathPrefix}/sub?token=${guest}&loon`),
-    ].join('');
+    const guestBaseUrl = `${url.origin}${subPathPrefix}/sub?token=${guest}`;
+    const guestLinks = subName ? [
+        renderSubLink('通用', guestBaseUrl),
+        renderSubLink('Base64', `${guestBaseUrl}&b64`),
+        renderSubLink('Clash', `${guestBaseUrl}&clash`),
+        renderSubLink('Sing-box', `${guestBaseUrl}&sb`),
+        renderSubLink('Surge', `${guestBaseUrl}&surge`),
+        renderSubLink('Loon', `${guestBaseUrl}&loon`),
+    ].join('') : '';
 
     // 安全地序列化 content 用于 JavaScript
     const safeContent = safeJsonStringify(content);
@@ -171,6 +187,11 @@ export function renderEditPage({
         <label class="form-label">文件名</label>
         <input id="fileNameInput" value="${safeFileName}" placeholder="输入文件名">
       </div>
+      <div class="form-group">
+        <label class="form-label">访问路径</label>
+        <input id="viewPathInput" value="${safeViewPath}" placeholder="例如：/ 或 /main">
+        <div class="form-hint">订阅的访问路径，默认为 ${subName ? `/${subName}` : '/'}</div>
+      </div>
       <div style="margin-top: 12px;">
         <button class="btn btn-primary" onclick="saveMetaConfig(this)">保存名称</button>
         <span class="status" id="metaStatus"></span>
@@ -188,6 +209,7 @@ export function renderEditPage({
       </div>
     </div>
 
+    ${subName ? `
     <!-- 访客订阅 -->
     <div class="card">
       <div class="card-header">
@@ -203,6 +225,14 @@ export function renderEditPage({
         </div>
       </div>
     </div>
+    ` : `
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">访客订阅</h2>
+      </div>
+      <p class="card-desc">主订阅已禁用访客访问，仅管理员可用。</p>
+    </div>
+    `}
 
     <!-- 订阅转换配置 -->
     <div class="card">
@@ -342,6 +372,7 @@ export function renderEditPage({
     function toggleGuest() {
       const el = document.getElementById('guestLinks');
       const text = document.getElementById('guestToggleText');
+      if (!el || !text) return;
       if (el.style.display === 'none') {
         el.style.display = 'block';
         text.textContent = '收起 ▲';
@@ -561,12 +592,13 @@ export function renderEditPage({
       await withLoading(button, async () => {
         const displayName = document.getElementById('displayNameInput').value.trim();
         const FileName = document.getElementById('fileNameInput').value.trim();
-        
+        const viewPath = document.getElementById('viewPathInput').value.trim();
+
         try {
           const res = await fetch(window.location.href, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-            body: JSON.stringify({ action: 'saveMeta', displayName, FileName }),
+            body: JSON.stringify({ action: 'saveMeta', displayName, FileName, viewPath }),
             cache: 'no-cache'
           });
           const text = await res.text();

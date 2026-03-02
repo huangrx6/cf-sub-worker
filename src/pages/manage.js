@@ -14,10 +14,19 @@ export function renderManagePage({ title, origin, hostname, adminPath, mainEditP
   const safeTitle = escapeHtml(title || 'SUB 管理');
   const safeGuest = String(guestToken || '').trim();
   const adminToken = String(adminPath || '').replace(/^\//, '').trim();
-  const mainAdminUrl = adminToken ? `${origin}/sub?token=${encodeURIComponent(adminToken)}` : '';
+  const normalizeViewPath = (value) => {
+    const raw = String(value || '/').trim();
+    if (!raw || raw === '/') return '/';
+    const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+    const clean = withSlash.replace(/\/+$/, '');
+    return clean || '/';
+  };
+
+  const mainViewPath = normalizeViewPath(main?.viewPath || '/');
+  const mainSubPath = mainViewPath === '/' ? '/sub' : `${mainViewPath}/sub`;
+  const mainAdminUrl = adminToken ? `${origin}${mainSubPath}?token=${encodeURIComponent(adminToken)}` : '';
   const mainDisplayName = escapeHtml(main?.displayName || title || '主订阅');
   const mainFileName = escapeHtml(main?.FileName || title || 'main');
-  const mainGuestBase = safeGuest ? `${origin}/sub?token=${encodeURIComponent(safeGuest)}` : '';
 
   // 生成主订阅卡片
   const mainCard = generateSubCard({
@@ -25,12 +34,12 @@ export function renderManagePage({ title, origin, hostname, adminPath, mainEditP
     displayName: mainDisplayName,
     fileName: mainFileName,
     hostname,
-    viewPath: '/',
+    viewPath: mainViewPath,
     editPath: escapeHtml(mainEditPath),
     adminUrl: mainAdminUrl,
-    guestUrl: mainGuestBase,
+    guestUrl: '',
     adminToken,
-    safeGuest,
+    safeGuest: '',
     isMain: true,
   });
 
@@ -280,6 +289,7 @@ export function renderManagePage({ title, origin, hostname, adminPath, mainEditP
       const card = document.querySelector('[data-id="' + id + '"]');
       const btn = card.querySelector('.btn[onclick*="deleteSub"]');
       const originalText = btn ? btn.innerHTML : '删除订阅';
+      let ok = false;
 
       try {
         if (btn) {
@@ -294,6 +304,7 @@ export function renderManagePage({ title, origin, hostname, adminPath, mainEditP
         });
         const data = await res.json();
         if (data.ok) {
+          ok = true;
           showToast('删除成功');
           setTimeout(() => location.reload(), 800);
         } else {
@@ -302,7 +313,7 @@ export function renderManagePage({ title, origin, hostname, adminPath, mainEditP
       } catch (e) {
         showToast('请求失败: ' + e.message);
       } finally {
-        if (btn && !data.ok) { // Only revert if failed, otherwise page reloads
+        if (btn && !ok) { // Only revert if failed, otherwise page reloads
            btn.disabled = false;
            btn.innerHTML = originalText;
         }
@@ -366,6 +377,12 @@ function generateSubCard({
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
           </button>
         </div>
+        ${isMain ? `
+        <div class="link-row">
+          <span class="tag">访客用</span>
+          <span class="hint">主订阅已禁用访客访问</span>
+        </div>
+        ` : `
         <div class="link-row">
           <span class="tag">访客用</span>
           <span class="hint">${safeGuest ? escapeHtml(guestUrl) : '未设置 Token'}</span>
@@ -373,6 +390,7 @@ function generateSubCard({
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
           </button>
         </div>
+        `}
       </div>
       
       <div class="card-footer">

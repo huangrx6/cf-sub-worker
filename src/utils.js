@@ -171,18 +171,52 @@ export function clashFix(content) {
  */
 export function nginx() {
     return `<!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-<title>Welcome to nginx!</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 Not Found</title>
 <style>
 html { color-scheme: light dark; }
-body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; }
+body {
+  margin: 0;
+  padding: 48px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+.wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-sizing: border-box;
+}
+h1 { margin: 0 0 10px; font-size: 24px; }
+p { margin: 8px 0; color: #6b7280; line-height: 1.6; }
+code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+a {
+  color: #111827;
+  text-decoration: none;
+  border-bottom: 1px dashed #9ca3af;
+}
+a:hover { border-bottom-color: #111827; }
 </style>
 </head>
 <body>
-<h1>Welcome to nginx!</h1>
-<p>If you see this page, the nginx web server is successfully installed and working.</p>
-<p><em>Thank you for using nginx.</em></p>
+<main class="wrap">
+  <h1>404 - 页面不存在或无访问权限</h1>
+  <p>当前请求的路由无法访问，可能是路径不正确，或当前 Token 没有该路径权限。</p>
+  <p>请先确认管理页中配置的主订阅路径（例如 <code>/huangrx6</code>）是否一致。</p>
+  <p>你可以回到 <a href="/">首页</a>，或使用正确的管理入口继续操作。</p>
+</main>
 </body>
 </html>`;
 }

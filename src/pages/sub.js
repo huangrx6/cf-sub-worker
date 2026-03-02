@@ -1,9 +1,9 @@
 /**
- * 订阅页模板
+ * 订阅页模板 - 极简设计风格
  */
 
 import { escapeHtml, escapeJsString } from '../utils.js';
-import { baseStyles, darkThemeStyles, qrStyles } from './styles.js';
+import { baseStyles, darkThemeStyles, subLinkStyles } from './styles.js';
 
 /**
  * 渲染订阅页
@@ -24,20 +24,16 @@ export function renderSubPage({ subId, displayName, origin, hostname, guestToken
         { key: 'Loon', url: `${base}&loon` },
     ];
 
-    const cards = links.map((l) => {
+    const linkItems = links.map((l) => {
         const safeUrl = escapeJsString(l.url);
-        const htmlUrl = escapeHtml(l.url);
         return `
-      <div class="link-card">
-        <div class="link-top">
-          <div class="link-key">${escapeHtml(l.key)}</div>
-          <div class="link-actions">
-            <button class="btn ghost" onclick="copyText('${safeUrl}')">复制</button>
-            <button class="btn ghost" onclick="showQR('${safeUrl}')">二维码</button>
-            <a class="btn ghost" href="${htmlUrl}" target="_blank" rel="noreferrer">打开</a>
-          </div>
+      <div class="sub-link-item">
+        <div class="sub-link-icon">${escapeHtml(l.key.slice(0, 2).toUpperCase())}</div>
+        <div class="sub-link-label">${escapeHtml(l.key)}</div>
+        <div class="sub-link-actions">
+          <button class="btn btn-secondary" onclick="copyLink('${safeUrl}')">复制</button>
+          <button class="btn btn-secondary" onclick="showQR('${safeUrl}', '${escapeJsString(l.key)}')">二维码</button>
         </div>
-        <div class="mono url">${htmlUrl}</div>
       </div>`;
     }).join('');
 
@@ -47,99 +43,99 @@ export function renderSubPage({ subId, displayName, origin, hostname, guestToken
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230071e3'><path d='M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>">
   <title>${safeName}</title>
   <style>
     ${baseStyles}
     ${darkThemeStyles}
-    ${qrStyles}
-    
-    .hero {
-      padding: 40px 20px;
+    ${subLinkStyles}
+
+    .header {
+      text-align: center;
+      padding: 48px 0 40px;
+      margin-bottom: 24px;
     }
-    .k {
-      color: #86868b;
+    .header h1 {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .header .subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+    .header .path {
+      margin-top: 16px;
+      font-family: 'SF Mono', SFMono-Regular, ui-monospace, monospace;
+      font-size: 13px;
+      color: var(--text-tertiary);
+      background: #f5f5f7;
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .header .path { background: #2c2c2e; }
+    }
+
+    .footer {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-tertiary);
       font-size: 13px;
     }
-    h1 {
-      margin: 8px 0 4px;
-      font-size: 28px;
-      font-weight: 600;
-    }
-    .sub {
-      color: #86868b;
-      line-height: 1.7;
-    }
-    .grid {
-      margin-top: 20px;
-      display: grid;
-      gap: 12px;
-    }
-    .link-card {
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      border-radius: 12px;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.6);
-    }
-    .link-top {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-    }
-    .link-key {
-      font-weight: 600;
-      letter-spacing: 0.2px;
-    }
-    .link-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .url {
-      margin-top: 10px;
-      word-break: break-all;
-      color: #86868b;
-    }
+    .footer a { color: var(--text-secondary); text-decoration: none; }
+    .footer a:hover { color: var(--text-primary); }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@keeex/qrcodejs-kx@1.0.2/qrcode.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero card">
-      <div class="k">SUB 页面 · ${escapeHtml(hostname || '')} /${escapeHtml(subId || '')}</div>
+  <div class="container">
+    <header class="header">
       <h1>${safeName}</h1>
-      <div class="sub">下方为该 SUB 的访客订阅地址（可复制/生成二维码）。</div>
-      <div class="grid">${cards}</div>
+      <p class="subtitle">访客订阅地址 · 点击复制或生成二维码</p>
+      <div class="path">${escapeHtml(hostname || '')}/${escapeHtml(subId || '')}</div>
+    </header>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">订阅链接</h2>
+      </div>
+      <div class="sub-links">
+        ${linkItems}
+      </div>
     </div>
+
+    <footer class="footer">
+      <p>Powered by <a href="https://github.com/cmliu/CF-Workers-SUB" target="_blank">CF-Workers-SUB</a></p>
+    </footer>
   </div>
+
+  <!-- QR Modal -->
+  <dialog id="qrModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeQR()">×</button>
+      <h3 id="qrTitle" style="margin-top:0;margin-bottom:16px;">二维码</h3>
+      <div id="qrCanvas"></div>
+      <p id="qrUrl" style="margin-top:16px;font-size:12px;color:var(--text-secondary);word-break:break-all;max-width:300px;"></p>
+    </div>
+  </dialog>
 
   <div class="toast" id="toast">已复制</div>
 
-  <div class="qr-backdrop" id="qrBackdrop" onclick="closeQR(event)">
-    <div class="qr-modal" role="dialog" aria-modal="true">
-      <div class="qr-head">
-        <div class="qr-title">订阅二维码</div>
-        <button class="btn ghost" onclick="hideQR()">关闭</button>
-      </div>
-      <div id="qr"></div>
-      <div class="mono" id="qrText" style="margin-top:12px;word-break:break-all;color:#86868b;font-size:12px;"></div>
-    </div>
-  </div>
-
   <script>
+    // ===== Toast 提示 =====
     const toast = document.getElementById('toast');
     let toastTimer;
-    
     function showToast(msg) {
       toast.textContent = msg || '已复制';
       toast.classList.add('show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toast.classList.remove('show'), 1500);
     }
-    
-    async function copyText(text) {
+
+    // ===== 复制链接 =====
+    async function copyLink(text) {
       try {
         await navigator.clipboard.writeText(text);
         showToast('已复制');
@@ -147,23 +143,42 @@ export function renderSubPage({ subId, displayName, origin, hostname, guestToken
         showToast('复制失败');
       }
     }
-    
-    function showQR(text) {
-      const backdrop = document.getElementById('qrBackdrop');
-      const qrDiv = document.getElementById('qr');
-      const qrText = document.getElementById('qrText');
-      qrDiv.innerHTML = '';
-      qrText.textContent = text;
-      backdrop.style.display = 'flex';
-      new QRCode(qrDiv, { text, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.Q });
+
+    // ===== QR 码 =====
+    function showQR(text, title) {
+      const modal = document.getElementById('qrModal');
+      const canvas = document.getElementById('qrCanvas');
+      const titleEl = document.getElementById('qrTitle');
+      const urlEl = document.getElementById('qrUrl');
+
+      canvas.innerHTML = '';
+      titleEl.textContent = title || '二维码';
+      urlEl.textContent = text;
+
+      new QRCode(canvas, {
+        text: text,
+        width: 240,
+        height: 240,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+
+      modal.showModal();
+
+      // 点击背景关闭
+      modal.addEventListener('click', (e) => {
+        const rect = modal.getBoundingClientRect();
+        const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!isInDialog) {
+          modal.close();
+        }
+      });
     }
-    
-    function hideQR() {
-      document.getElementById('qrBackdrop').style.display = 'none';
-    }
-    
-    function closeQR(e) {
-      if (e.target && e.target.id === 'qrBackdrop') hideQR();
+
+    function closeQR() {
+      document.getElementById('qrModal').close();
     }
   </script>
 </body>
